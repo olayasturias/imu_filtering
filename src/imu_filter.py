@@ -19,29 +19,27 @@ from scipy import integrate
 
 class Imu_Filter():
     def __init__(self,topic = '/imu'):
+        # Unfiltered accelerations
         self.linear_accs = [[],[],[]]
+        # Unfiltered rotations
         self.gyro = [[],[],[]]
+        # Time array
         self.t = []
-        imu_sub = rospy.Subscriber(topic, Imu, self.imu_callback)
 
-        self.imu_pub = rospy.Publisher('/imu/filtered', Imu, queue_size=10)
-        self.imu_pub_pose = rospy.Publisher('/imu/filtered/pose', Imu, queue_size=10)
-        self.pose_pub = rospy.Publisher('/imu_pose', Pose, queue_size=10)
-        self.pose_pub_unfilter = rospy.Publisher('/unfiltered_imu_pose', Pose, queue_size=10)
+        # Filtered accelerations
+        self.filtered_accs = [[],[],[]]
+
+        imu_sub = rospy.Subscriber(topic, Imu, self.imu_callback)
 
         rospy.sleep(10)
 
-        self.xavg = np.average(self.linear_accs[0])
-        self.yavg = np.average(self.linear_accs[1])
-        self.zavg = np.average(self.linear_accs[2])
+        self.accs_avg = [[np.average(self.linear_accs[0])],
+                         [np.average(self.linear_accs[1])],
+                         [np.average(self.linear_accs[2])]]
 
-        self.x = 0.0
-        self.y = 0.0
-        self.z = 0.0
+        self.position = [[0.0],[0.0],[0.0]]
 
-        self.x_unfiltered = 0.0
-        self.y_unfiltered = 0.0
-        self.z_unfiltered = 0.0
+        self.position_unfiltered = [[0.0],[0.0],[0.0]]
 
 
     def imu_callback(self, data):
@@ -55,111 +53,131 @@ class Imu_Filter():
         # self.filter()
 
 
-    def filter(self):
+    def filter(self, wave, level):
 
-        len_acc = len(self.linear_accs[0])
-        # Filter x coordinate
-        filtered_x = self.wavelet_filter(self.linear_accs[0][-200:len_acc], 'db38',6)
-        filtered_x[:] = [h - self.xavg for h in filtered_x]
-        # Filter y coordinate
-        filtered_y = self.wavelet_filter(self.linear_accs[1][-200:len_acc], 'db38',6)
-        filtered_y[:] = [i - self.yavg for i in filtered_y]
-        # Filter z coordinate
-        filtered_z = self.wavelet_filter(self.linear_accs[2][-200:len_acc], 'db38',6)
-        filtered_z[:] = [j - self.zavg for j in filtered_z]
+        # Filter each dimension with the wavelet filter
+        self.filtered_accs = self.wavelet_filter(self.linear_accs, wave, level)
 
-        dx = self.trapz(filtered_x[-6:len(filtered_x)],self.t[-6:len(self.t)])
-        dy = self.trapz(filtered_y[-6:len(filtered_x)],self.t[-6:len(self.t)])
-        dz = self.trapz(filtered_z[-6:len(filtered_x)],self.t[-6:len(self.t)])
 
-        self.x += dx[len(dx)-1]
-        self.y += dy[len(dy)-1]
-        self.z += dz[len(dz)-1]
+    def integrate(self, accs, t, position):
+        """ This function takes x,y and z coordinates, as well as time t,
+        and calls the desired integration method"""
 
-        #self.imu_pub.Header.header.stamp = rospy.Time.now()
-        imu_msg = Imu()
-        imu_msg.header.stamp = rospy.Time.now()
-        imu_msg.linear_acceleration.x = filtered_x[len(filtered_x)-1]-self.xavg
-        imu_msg.linear_acceleration.y = filtered_y[len(filtered_y)-1]-self.yavg
-        imu_msg.linear_acceleration.z = filtered_z[len(filtered_z)-1]-self.zavg
+        dt = t[-6:len(t)]
+        dposition = [[0.0],[0.0],[0.0]]
 
-        self.imu_pub.publish(imu_msg)
+        for i in (0,1,len(accs)-1):
+            x_array = self.double_trapz(accs[i][-6:len(accs[i])],dt)
+            dposition[i][0] = x_array[len(x_array)-1]
 
-        #self.imu_pub.Header.header.stamp = rospy.Time.now()
-        imu_msg_pose = Imu()
-        imu_msg_pose.header.stamp = rospy.Time.now()
-        imu_msg_pose.linear_acceleration.x = dx[len(dx)-1]
-        imu_msg_pose.linear_acceleration.y = dy[len(dy)-1]
-        imu_msg_pose.linear_acceleration.z = dz[len(dz)-1]
+        rospy.logdebug("Differential of position x: %s", dposition[0])
+        rospy.logdebug("Position to add: %s", position[0])
 
-        self.imu_pub_pose.publish(imu_msg_pose)
-
-        pose_msg = Pose()
-        pose_msg.position.x = self.x
-        pose_msg.position.y = self.y
-        pose_msg.position.z = self.z
-
-        self.pose_pub.publish(pose_msg)
-
-        # Same with unfiltered to check
-        dxuf = self.trapz(self.linear_accs[0][-6:len_acc],self.t[-6:len(self.t)])
-        dyuf = self.trapz(self.linear_accs[1][-6:len_acc],self.t[-6:len(self.t)])
-        dzuf = self.trapz(self.linear_accs[2][-6:len_acc],self.t[-6:len(self.t)])
-
-        self.x_unfiltered += dxuf[len(dxuf)-1]
-        self.y_unfiltered += dyuf[len(dyuf)-1]
-        self.z_unfiltered += dzuf[len(dzuf)-1]
-
-        pose_msg_uf = Pose()
-        pose_msg_uf.position.x = self.x_unfiltered
-        pose_msg_uf.position.y = self.y_unfiltered
-        pose_msg_uf.position.z = self.z_unfiltered
-
-        self.pose_pub_unfilter.publish(pose_msg_uf)
+        # Sum the new differential of position with absolute position
+        position = np.add(position,dposition)
+        return position
 
 
 
-    def wavelet_filter(self, x, wave, level):
-        # Calculate wavelet coefficients
-        x_coeffs = pywt.wavedec(x, wave, level=level , mode = 'per')
-        # Calculate a threshold
-        sigma = mad(x_coeffs[-level])
-        # changing this threshold also changes the behavior,
-        uthresh = sigma * np.sqrt( 2*np.log( len( x ) ) )
-        x_coeffs[1:] = ( pywt.threshold( i, value=uthresh, mode="soft" )
-                        for i in x_coeffs[1:] )
-        # reconstruct the signal using the thresholded coefficients
-        w = pywt.waverec( x_coeffs, wave, mode="per" )
+    def publish(self, pub, type, data):
 
-        # return filtered signal
-        return w
-    
+        msg = type
+        if msg == Imu():
+            msg.header.stamp = rospy.Time.now()
+            msg.linear_acceleration.x = data[0][len(data[0])-1]
+            msg.linear_acceleration.y = data[1][len(data[1])-1]
+            msg.linear_acceleration.z = data[2][len(data[2])-1]
 
-    def trapz(self,x,t):
+        elif msg == Pose():
+            msg.position.x = data[0][len(data[0])-1]
+            msg.position.y = data[1][len(data[0])-1]
+            msg.position.z = data[2][len(data[0])-1]
+
+        pub.publish(msg)
+
+
+    def wavelet_filter(self, accs, wave, level):
+        """ filters the three axis and substracts the average previously
+        obtained for each axis """
+
+        accs_coeffs = [[],[],[]]
+        sigmas      = [[],[],[]]
+        uthresh     = [[],[],[]]
+        filtered    = [[],[],[]]
+
+        for i in (0,1,len(accs)-1):
+            # Calculate wavelet coefficients
+            accs_coeffs[i] = pywt.wavedec(accs[i], wave, level=level , mode = 'per')
+            # Calculate a threshold
+            sigmas[i] = mad(accs_coeffs[i][-level])
+            # changing this threshold also changes the behavior,
+            uthresh[i] = sigmas[i] * np.sqrt( 2*np.log( len( accs[i] ) ) )
+            accs_coeffs[i][1:] = ( pywt.threshold( j, value=uthresh[i], mode="soft" )
+            for j in accs_coeffs[i][1:] )
+            # reconstruct the signal using the thresholded coefficients
+            filtered[i] = pywt.waverec( accs_coeffs[i], wave, mode="per" )
+            filtered[i][:] = [h - self.accs_avg[i] for h in filtered[i]]
+
+        return filtered
+
+
+    def double_trapz(self,x,t):
         '''integrate twice'''
-        if len(x)!=len(t):
-            if len(x)<len(t):
-                l = len(x)
-            else:
-                l = len(t)
-        else:
-            l = len(t)
+        lx = len(x)
+        lt = len(t)
 
-        print 'x=', x[-l:len(x)]
-        print 't=', t[-l:len(t)]
-        dt = integrate.cumtrapz(x[-l:len(x)],t[-l:len(t)])
-        print 'dt = ', dt
-        ddt = integrate.cumtrapz(dt,t[-l+1:len(t)])
-        print 'ddt = ', ddt
+        if lx!=lt:
+            if lx<lt:
+                l = lx
+            else:
+                l = lt
+        else:
+            l = lt
+
+        dt = integrate.cumtrapz(x[-l:lx],t[-l:lt])
+        ddt = integrate.cumtrapz(dt,t[-l+1:lt])
 
         return ddt
 
 
 
 if __name__=='__main__':
-    rospy.init_node('imu_filter_wav',anonymous = True)
-    iwf = Imu_Filter(topic='/mavros/imu/data')
-    rate = rospy.Rate(1)
+    rospy.init_node('imu_filter_wav',anonymous = True, log_level=rospy.DEBUG)
+
+    imutopic = rospy.get_param('~imu_topic')
+    rospy.logdebug("IMU TOPIC %s", imutopic)
+    wav_mode = rospy.get_param('~wavelet_mode')
+    rospy.logdebug("WAVELET FILTER MODE %s", wav_mode)
+    wav_level = rospy.get_param('~wavelet_level')
+    rospy.logdebug("WAVELET FILTER LEVEL %s", wav_level)
+
+    iwf = Imu_Filter(topic=imutopic)
+
+    # Data publishers
+    imu_filtered_pub    = rospy.Publisher('/imu_filtered', Imu, queue_size=10)
+    pose_filtered_pub   = rospy.Publisher('/imu_pose', Pose, queue_size=10)
+    pose_unfiltered_pub = rospy.Publisher('/unfiltered_imu_pose', Pose, queue_size=10)
+
+
+    rate = rospy.Rate(1) # 1 sec
     while not rospy.is_shutdown():
         rate.sleep() # sleeps for 1 sec
-        iwf.filter()
+
+        # Filter the read accelerations
+        iwf.filter(wav_mode,wav_level)
+        # Publish filtered Imu
+        iwf.publish(imu_filtered_pub, Imu(), iwf.filtered_accs)
+        rospy.logdebug(" Filtered acc x example value: %f", iwf.filtered_accs[0][0])
+
+        # Integrate and sum to obtain position
+        iwf.position = iwf.integrate(iwf.filtered_accs,iwf.t, iwf.position)
+        rospy.logdebug("Position x after filtering: %f", iwf.position[0][0])
+        # Publish filtered pose
+        iwf.publish(pose_filtered_pub, Pose(), iwf.position)
+
+        rospy.logdebug(" UNfiltered acc x example value: %f", iwf.linear_accs[0][0])
+        # Integrate unfiltered accs
+        iwf.position_unfiltered = iwf.integrate(iwf.linear_accs, iwf.t, iwf.position_unfiltered)
+        rospy.logdebug("Unfiltered position x: %f", iwf.position_unfiltered[0][0])
+        # Publish unfiltered pose
+        iwf.publish(pose_unfiltered_pub, Pose(), iwf.position_unfiltered)

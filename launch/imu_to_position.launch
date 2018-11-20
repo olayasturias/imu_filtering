@@ -1,0 +1,17 @@
+<launch>
+  <!-- Read arguments -->
+  <arg name="imu_topic" default="/mavros/imu/data"/>
+  <arg name="wavelet_mode" default="db38"/>
+  <arg name="wavelet_level" default="6"/>
+
+  <node name="imu_filter"
+        pkg="imu_filtering"
+        type="imu_filter.py"
+        output="screen"
+        respawn="false">
+    <!-- Set ROS parameters -->
+    <param name="imu_topic" value="$(arg imu_topic)"/>
+    <param name="wavelet_mode" value="$(arg wavelet_mode)"/>
+    <param name="wavelet_level" value="$(arg wavelet_level)"/>
+  </node>
+</launch>
