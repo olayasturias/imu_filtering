@@ -8,7 +8,7 @@ This ROS package reads data from an IMU message, filters it, and then integrates
 You must clone this repository as `imu_filtering` into your catkin workspace:
 
 ```bash
-https://github.com/olayasturias/tritech_profiler.git
+https://github.com/olayasturias/imu_filtering.git
 ```
 
 ## Compiling
@@ -27,7 +27,7 @@ from the root of your workspace.
 To run, simply run:
 
 ```bash
-rroslaunch imu_filtering imu_to_position.launch imu_topic:=</imu/topic> wavelet_mode:=<wav_mode> wavelet_level:=<level>
+roslaunch imu_filtering imu_to_position.launch imu_topic:=</imu/topic> wavelet_mode:=<wav_mode> wavelet_level:=<level>
 ```
 
 `imu_topic`, `wavelet_mode` and `wavelet_level` are run-time ROS launch arguments:
