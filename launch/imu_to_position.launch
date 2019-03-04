@@ -4,7 +4,7 @@
   <arg name="base_frame"    default="world"/>
   <arg name="imu_frame"     default="base_link"/>
   <arg name="wavelet_mode"  default="db38"/>
-  <arg name="wavelet_level" default="2"/>
+  <arg name="wavelet_level" default="4"/>
 
   <node name="imu_filter"
         pkg="imu_filtering"

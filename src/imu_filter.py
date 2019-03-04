@@ -206,7 +206,7 @@ if __name__=='__main__':
     pose_unfiltered_pub = rospy.Publisher('/unfiltered_imu_pose', Pose, queue_size=10)
     tf_pub              = tf2_ros.TransformBroadcaster()
 
-    rate = rospy.Rate(2)
+    rate = rospy.Rate(5)
     while not rospy.is_shutdown():
         rate.sleep() # sleeps for 1 sec
 
