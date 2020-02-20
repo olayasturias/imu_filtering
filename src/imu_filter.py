@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import rospy
-import allantools
 import allan_variance
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,7 +10,7 @@ import csv
 #import lowpass
 from scipy.signal import butter, lfilter, freqz
 import pywt
-import tf2_ros
+import tf2_ros # https://gist.github.com/yukke42/b6f409930240f424f69b16eb6bc374b2
 from statsmodels.robust import mad
 from sensor_msgs.msg import Imu
 from geometry_msgs.msg import Pose, TransformStamped
@@ -111,11 +110,21 @@ class Imu_Filter():
             msg.linear_acceleration.x = x
             msg.linear_acceleration.y = y
             msg.linear_acceleration.z = z
+            
+            msg.orientation.x = ox
+            msg.orientation.y = oy
+            msg.orientation.z = oz
+            msg.orientation.w = ow
 
         elif msg == Pose():
             msg.position.x = x
             msg.position.y = y
             msg.position.z = z
+
+            msg.orientation.x = ox
+            msg.orientation.y = oy
+            msg.orientation.z = oz
+            msg.orientation.w = ow
 
         elif msg == TransformStamped():
             msg.header.stamp = rospy.Time.now()

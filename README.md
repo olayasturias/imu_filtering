@@ -1,7 +1,7 @@
 # Imu Filtering ROS Package
 
 This ROS package reads data from an IMU message, filters it, and then integrates it to obtain Pose
-**This has only been tested on ROS Kinetic.**
+**This has been tested on ROS Melodic.**
 
 ## Setting up
 
@@ -11,13 +11,21 @@ You must clone this repository as `imu_filtering` into your catkin workspace:
 https://github.com/olayasturias/imu_filtering.git
 ```
 
+Currently, the package `tf2_ros` is not working in ROS Melodic with Python3.
+Clone the `geometry2` package and build it in your workspace with Python3:
+
+```bash
+https://github.com/ros/geometry2
+```
+
+
 ## Compiling
 
 You **must** compile this package before being able to run it. You can do so
 by running:
 
 ```bash
-catkin_make
+catkin build
 ```
 
 from the root of your workspace.
