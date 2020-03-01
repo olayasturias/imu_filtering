@@ -52,7 +52,7 @@ class Imu_Filter():
 
         self.linear_accs[0].append(data.linear_acceleration.y)
         self.linear_accs[1].append(-data.linear_acceleration.x)
-        self.linear_accs[2].append(data.linear_acceleration.z)
+        self.linear_accs[2].append(-data.linear_acceleration.z)
 
         # Add quaternion orientation (directly)
         self.gyro[0].append(data.orientation.x)
@@ -110,7 +110,7 @@ class Imu_Filter():
             msg.linear_acceleration.x = x
             msg.linear_acceleration.y = y
             msg.linear_acceleration.z = z
-            
+
             msg.orientation.x = ox
             msg.orientation.y = oy
             msg.orientation.z = oz
@@ -223,15 +223,15 @@ if __name__=='__main__':
         iwf.filter(wav_mode,wav_level)
         # Publish filtered Imu
         iwf.publish(imu_filtered_pub, Imu(), iwf.filtered_accs)
-        rospy.logdebug(" Filtered acc x example value: %f", iwf.filtered_accs[0][0])
+        rospy.logdebug(" Filtered acc x example value: %f", iwf.filtered_accs[1][0])
 
         # Integrate and sum to obtain position
         iwf.position = iwf.integrate(iwf.filtered_accs,iwf.t, iwf.position)
-        rospy.logdebug("Position x after filtering: %f", iwf.position[0][0])
+        rospy.logdebug("Position x after filtering: %f", iwf.position[1][0])
         # Publish filtered pose
         iwf.publish(pose_filtered_pub, Pose(), iwf.position)
         # Publish tf with filtered pose
-        iwf.publish(tf_pub, TransformStamped(), iwf.position)
+        #iwf.publish(tf_pub, TransformStamped(), iwf.position)
 
         rospy.logdebug(" UNfiltered acc x example value: %f", iwf.linear_accs[0][0])
         # Integrate unfiltered accs

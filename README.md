@@ -18,6 +18,12 @@ Clone the `geometry2` package and build it in your workspace with Python3:
 https://github.com/ros/geometry2
 ```
 
+Dependencies:
+
+```bash
+pip3 install numpy scipy PyWavelets statsmodels
+```
+
 
 ## Compiling
 
